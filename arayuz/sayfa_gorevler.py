@@ -90,9 +90,8 @@ class GorevlerEkrani(ctk.CTkFrame):
         filtrelenen = []
 
         for k in kayitlar:
-            tur = k.get("tur") or "not"
-            # Hem tur='gorev' hem de aylik gorevler bu ekranda yer alabilir
-            if tur != "gorev" and not reminder.aylik_gorev_mi(k):
+            # Yalnizca tur='gorev' kayitlari bu sekmede gosterilir.
+            if (k.get("tur") or "not") != "gorev":
                 continue
 
             ilerleme = int(k.get("ilerleme") or 0)

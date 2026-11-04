@@ -107,9 +107,8 @@ class TerminlerEkrani(ctk.CTkFrame):
         filtrelenen = []
 
         for k in kayitlar:
-            tur = k.get("tur") or "not"
-            # tur='termin' olanlar veya kategorisi 'Okul'/'Evrak' olanlar
-            if tur != "termin" and k.get("kategori") not in ("Okul", "Evrak", "Termin"):
+            # Yalnizca tur='termin' kayitlari bu sekmede gosterilir.
+            if (k.get("tur") or "not") != "termin":
                 continue
 
             zaman = reminder.not_zamani(k)

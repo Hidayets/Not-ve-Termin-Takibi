@@ -9,10 +9,11 @@ import notifier
 
 
 class Tepsi:
-    def __init__(self, pencere_goster, gunluk_goster, ayarlari_goster, cikis):
+    def __init__(self, pencere_goster, gunluk_goster, ayarlari_goster, guncelle, cikis):
         self.pencere_goster = pencere_goster
         self.gunluk_goster = gunluk_goster
         self.ayarlari_goster = ayarlari_goster
+        self.guncelle = guncelle
         self.cikis = cikis
         self.simge: pystray.Icon | None = None
 
@@ -29,6 +30,7 @@ class Tepsi:
             pystray.MenuItem("Bugünün Notları", self._bugun),
             pystray.MenuItem("Ayarlar", self._ayarlar),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Güncelle ve Yeniden Başlat", self._guncelle_ve_baslat),
             pystray.MenuItem("Tamamen Çık", self._cikis),
         )
         self.simge = pystray.Icon(db.UYGULAMA_ADI, self._resim(), db.UYGULAMA_ADI, menu)
@@ -51,6 +53,9 @@ class Tepsi:
 
     def _ayarlar(self, ikon=None, oge=None) -> None:
         self.ayarlari_goster()
+
+    def _guncelle_ve_baslat(self, ikon=None, oge=None) -> None:
+        self.guncelle()
 
     def _cikis(self, ikon=None, oge=None) -> None:
         self.cikis()

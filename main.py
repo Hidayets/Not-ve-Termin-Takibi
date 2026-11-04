@@ -40,6 +40,7 @@ class NotHatirlatici:
             pencere_goster=self._tepsi_pencere,
             gunluk_goster=self._tepsi_bugun,
             ayarlari_goster=self._tepsi_ayarlar,
+            guncelle=self._tepsi_guncelle,
             cikis=self._tepsi_cikis,
         )
         self.tepsi.baslat()
@@ -56,6 +57,29 @@ class NotHatirlatici:
 
     def _tepsi_ayarlar(self) -> None:
         self.pencere.after(0, lambda: self.pencere.pencereyi_goster("Ayarlar"))
+
+    def _tepsi_guncelle(self) -> None:
+        """Tepsi menusundeki 'Guncelle ve Yeniden Baslat' istegini isler."""
+        self.pencere.after(0, self.guncelleme_istegi_isle)
+
+    def guncelleme_istegi_isle(self) -> None:
+        """Indirilmis guncelleme varsa kurar; yoksa simdi kontrol edip kurar."""
+        if guncelleme.bekleyen_guncelleme() is not None:
+            self.guncellemeyi_uygula_ve_cik()
+            return
+        threading.Thread(target=self._guncelleme_kontrol_ve_kur, daemon=True).start()
+
+    def _guncelleme_kontrol_ve_kur(self) -> None:
+        """Arka planda surum kontrolu yapar; yeniyse indirip kurar."""
+        try:
+            guncelleme.kontrol_et_ve_indir()
+        except Exception as hata:
+            print("[guncelleme kontrol hatasi]", hata)
+        if guncelleme.bekleyen_guncelleme() is not None:
+            self.pencere.after(0, self.guncellemeyi_uygula_ve_cik)
+            return
+        mesaj = guncelleme.durum_oku().get("mesaj") or "Güncelleme bulunamadı."
+        notifier.bildirim_goster("Güncelleme", mesaj)
 
     def _tepsi_cikis(self) -> None:
         self.pencere.after(0, self.cikis)
