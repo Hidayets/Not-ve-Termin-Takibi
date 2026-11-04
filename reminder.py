@@ -131,6 +131,20 @@ def aylik_gun_listesi(not_kaydi: dict) -> list[int]:
     return gun_listesi_ayristir(not_kaydi.get("ay_gun_listesi"))
 
 
+def ilk_hafta_gunleri(yil: int, ay: int) -> set[int]:
+    """Ayin ilk Pazartesi-Pazar haftasina dusen gun numaralari.
+
+    Ayin 1'inden baslayan aylik gun araliklari "ayin ilk haftasi" olarak
+    yorumlanir ve hafta ortasindan degil, Pazartesi'den baslayacak sekilde
+    hizalanir. Ornegin Kasim 2026 (1'i Pazar) icin 2-8 gunleri dondurulur.
+    """
+    son = calendar.monthrange(yil, ay)[1]
+    ilk = datetime.date(yil, ay, 1)
+    pazartesi = ilk + datetime.timedelta(days=(7 - ilk.weekday()) % 7)
+    baslangic = pazartesi.day
+    return set(range(baslangic, min(baslangic + 6, son) + 1))
+
+
 def aylik_hedef_gunler(not_kaydi: dict, yil: int, ay: int) -> set[int]:
     """Ilgili ay icin uyari verilecek gun numaralari.
 
@@ -140,8 +154,16 @@ def aylik_hedef_gunler(not_kaydi: dict, yil: int, ay: int) -> set[int]:
     son = calendar.monthrange(yil, ay)[1]
     kural = (not_kaydi.get("ay_kural") or "").strip()
     if kural == "ilk_gun":
+        # Ayin 1'i hafta sonuna denk gelirse ilk is gunune kaydirilir.
+        for gun in range(1, son + 1):
+            if is_gunu(datetime.date(yil, ay, gun)):
+                return {gun}
         return {1}
     if kural == "son_gun":
+        # Ayin son gunu hafta sonuna denk gelirse son is gunune kaydirilir.
+        for gun in range(son, 0, -1):
+            if is_gunu(datetime.date(yil, ay, gun)):
+                return {gun}
         return {son}
     if kural == "ilk_is_gunu":
         for gun in range(1, son + 1):
@@ -158,6 +180,10 @@ def aylik_hedef_gunler(not_kaydi: dict, yil: int, ay: int) -> set[int]:
         return {gun for gun in liste if gun <= son}
     aralik = aylik_aralik(not_kaydi)
     if aralik:
+        if aralik[0] == 1:
+            # "Ayin ilk haftasi" (1'den baslayan aralik) takvim haftasina hizalanir:
+            # hafta ortasindan degil, Pazartesi'den baslayip Pazar'a kadar surer.
+            return ilk_hafta_gunleri(yil, ay)
         return set(range(aralik[0], min(aralik[1], son) + 1))
     zaman = not_zamani(not_kaydi)
     if zaman is None:
@@ -165,9 +191,25 @@ def aylik_hedef_gunler(not_kaydi: dict, yil: int, ay: int) -> set[int]:
     return {zaman.day}
 
 
+def _ilk_hafta_ici_gun(not_kaydi: dict, gun: datetime.date, olusturma: datetime.date) -> bool:
+    """Not, 'ayin ilk haftasi' blogunda olusturulduysa ve gun de ayni bloktaysa True.
+
+    Bu durumda not olusturulmadan onceki hafta basi gunleri (or. Pazartesi) de
+    kapsanir; boylece hem takvim hem aylik liste haftayi Pazartesi'den baslatir.
+    """
+    if not aylik_ilk_hafta_mi(not_kaydi):
+        return False
+    if gun.year != olusturma.year or gun.month != olusturma.month:
+        return False
+    ilk_hafta = ilk_hafta_gunleri(olusturma.year, olusturma.month)
+    return gun.day in ilk_hafta and olusturma.day in ilk_hafta
+
+
 def _gun_uygun(not_kaydi: dict, gun: datetime.date) -> bool:
     zaman = not_zamani(not_kaydi)
-    if zaman is None or gun < zaman.date():
+    if zaman is None:
+        return False
+    if gun < zaman.date() and not _ilk_hafta_ici_gun(not_kaydi, gun, zaman.date()):
         return False
     tip = not_kaydi.get("tekrar_tipi") or "tek"
     if tip == "tek":
@@ -249,16 +291,25 @@ def aylik_gorev_mi(not_kaydi: dict) -> bool:
     return aylik_aralik(not_kaydi) is None
 
 
+def aylik_ilk_hafta_mi(not_kaydi: dict) -> bool:
+    """Aylik gorev 'ayin ilk haftasi' (1'den baslayan gun araligi) mi?
+
+    Bu gorevlerin gunleri takvim haftasina hizalanir: hafta ortasindan degil,
+    Pazartesi'den baslayip Pazar'a kadar surer.
+    """
+    if (not_kaydi.get("tekrar_tipi") or "tek") != "aylik":
+        return False
+    aralik = aylik_aralik(not_kaydi)
+    return aralik is not None and aralik[0] == 1
+
+
 def aylik_gorev_gunleri(not_kaydi: dict, yil: int, ay: int) -> list[int]:
-    """Aylik bir gorevin ilgili ayda planlanan gunleri (notun baslangicindan sonrakiler)."""
-    zaman = not_zamani(not_kaydi)
-    if zaman is None:
-        return []
-    return [
-        gun
-        for gun in sorted(aylik_hedef_gunler(not_kaydi, yil, ay))
-        if datetime.date(yil, ay, gun) >= zaman.date()
-    ]
+    """Aylik bir gorevin ilgili ayda planlanan gunleri.
+
+    Gunler, notun olusturulma tarihine gore kirpilmaz; boylece "ayin ilk haftasi"
+    gibi Pazartesi-Pazar bloguna hizalanan gorevler basta hafta basini de gosterir.
+    """
+    return sorted(aylik_hedef_gunler(not_kaydi, yil, ay))
 
 
 def uyari_zamani(not_kaydi: dict, olay: datetime.datetime) -> datetime.datetime:

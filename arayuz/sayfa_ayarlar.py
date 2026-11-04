@@ -128,24 +128,48 @@ class AyarlarEkrani(ctk.CTkFrame):
         db.ayar_yaz("tema", TEMA_ESLEME.get(secim, "dark"))
         self.uygulama.tema_uygula()
 
+    def _ses_degisti(self, secim: str) -> None:
+        """Secilen bildirim sesini kaydeder ve onizleme olarak calar."""
+        db.ayar_yaz("bildirim_sesi", secim)
+        notifier.ses_cal(secim)
+
     # ------------------------------------------------------------- Bildirim
     def _kart_bildirim(self) -> None:
         ic = self._kart("Bildirimler ve Uyarılar", "🔔")
 
         def _olustur_ses(satir):
-            return ctk.CTkOptionMenu(
-                satir,
+            kutu = ctk.CTkFrame(satir, fg_color="transparent")
+            self.opt_ses = ctk.CTkOptionMenu(
+                kutu,
                 values=notifier.SES_SECENEKLERI,
                 width=180,
                 height=32,
                 font=font(12),
                 fg_color=TEMA_RENKLERI["btn_notr"],
                 text_color=TEMA_RENKLERI["btn_notr_metin"],
-                command=lambda s: db.ayar_yaz("bildirim_sesi", s),
+                command=self._ses_degisti,
             )
+            self.opt_ses.pack(side="left")
+            ctk.CTkButton(
+                kutu,
+                text="▶ Dinle",
+                width=80,
+                height=32,
+                font=font(11, weight="bold"),
+                fg_color=TEMA_RENKLERI["btn_notr"],
+                text_color=TEMA_RENKLERI["btn_notr_metin"],
+                hover_color=TEMA_RENKLERI["btn_notr_hover"],
+                command=lambda: notifier.ses_cal(self.opt_ses.get()),
+            ).pack(side="left", padx=(8, 0))
+            return kutu
 
-        ses = self._satir(ic, "Bildirim Sesi", _olustur_ses)
-        ses.set(db.ayar_al("bildirim_sesi", "Varsayılan"))
+        self._satir(
+            ic,
+            "Bildirim Sesi",
+            _olustur_ses,
+            "Seçtiğiniz ses otomatik dinletilir; 'Dinle' ile tekrar çalabilirsiniz.",
+        )
+        self.opt_ses.set(db.ayar_al("bildirim_sesi", "Varsayılan"))
 
         def _olustur_aralik(satir):
             return ctk.CTkOptionMenu(

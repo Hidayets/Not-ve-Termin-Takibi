@@ -1,7 +1,9 @@
 """Ana Pencere: Sol yan menu (sidebar), ust baslik bari ve dinamik sayfa yonetimi."""
 from __future__ import annotations
 
+import ctypes
 import datetime
+import os
 
 import customtkinter as ctk
 
@@ -59,6 +61,7 @@ class AnaPencere(ctk.CTk):
         self.minsize(1040, 680)
         self.protocol("WM_DELETE_WINDOW", self.kapat_talebi)
         self.configure(fg_color=TEMA_RENKLERI["bg_ana"])
+        self._ikonu_ayarla()
 
         self.uyarilar: list[UyariPenceresi] = []
         self._tepsi_uyarisi_gosterildi = False
@@ -101,6 +104,25 @@ class AnaPencere(ctk.CTk):
             rapor.rapor_olustur_ve_ac()
         except Exception as e:
             print("[rapor hatasi]", e)
+
+    def _ikonu_ayarla(self) -> None:
+        """Pencere ve gorev cubugu simgesini uygulama ikonuna ayarlar.
+
+        Aksi halde uygulama pythonw/main.py ile acildiginda gorev cubugunda
+        Python simgesi gorunur. Gorev cubugu gruplamasini sabitlemek icin de
+        bir AppUserModelID atanir.
+        """
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "NotlarimVeTerminTakibi"
+            )
+        except Exception:
+            pass
+        try:
+            if os.path.exists(db.IKON_YOLU):
+                self.iconbitmap(db.IKON_YOLU)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------- Sol Yan Menu
     def _yan_menuyu_olustur(self) -> None:

@@ -21,6 +21,16 @@ _SES_ESLEME = {
     "Döngü (alarm)": audio.LoopingAlarm,
 }
 
+# Onizleme icin Windows bildirim seslerine karsilik gelen medya dosyalari.
+# Dosya adlari Windows surumune gore degisebildigi icin sirali adaylar denenir.
+_SES_DOSYA_ADLARI = {
+    "Varsayılan": ["Windows Notify System Generic.wav", "Windows Notify.wav", "notify.wav"],
+    "Hatırlatma": ["Windows Notify Calendar.wav", "Windows Notify.wav", "notify.wav"],
+    "Posta": ["Windows Notify Email.wav", "Windows Notify.wav", "notify.wav"],
+    "SMS": ["Windows Notify Messaging.wav", "Windows Notify.wav", "notify.wav"],
+    "Döngü (alarm)": ["Alarm01.wav", "Alarm02.wav", "Ring01.wav"],
+}
+
 # Bildirim uzerindeki dugmelere tiklaninca Windows bu protokol ile uygulamayi calistirir.
 PROTOKOL_ADI = "nothatirlatici"
 # Bildirim butonlarindan gelen isteklerin biriktirildigi dosya.
@@ -176,6 +186,38 @@ def bildirim_goster(
         return True
     except Exception as hata:
         print("[plyer hatasi]", hata)
+        return False
+
+
+def ses_cal(ses_adi: str) -> bool:
+    """Secilen bildirim sesini onizleme amaciyla calar (Ayarlar ekrani icin).
+
+    Windows bildirim sesleri belirli .wav dosyalarina karsilik gelir; uygun
+    dosya bulunamazsa sistem uyari sesi calinir. 'Sessiz' seceneginde hicbir
+    sey calinmaz.
+    """
+    if ses_adi == "Sessiz":
+        return False
+    try:
+        import winsound
+    except Exception:
+        return False
+    medya = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Media")
+    for ad in _SES_DOSYA_ADLARI.get(ses_adi, []):
+        yol = os.path.join(medya, ad)
+        if os.path.exists(yol):
+            try:
+                winsound.PlaySound(
+                    yol,
+                    winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT,
+                )
+                return True
+            except RuntimeError:
+                continue
+    try:
+        winsound.MessageBeep(winsound.MB_ICONASTERISK)
+        return True
+    except Exception:
         return False
 
 

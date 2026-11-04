@@ -507,7 +507,7 @@ class TakvimEkrani(ctk.CTkFrame):
         if gun == self.secili:
             renk, kalinlik = TEMA_RENKLERI["vurgu"], 2
         elif gun == datetime.date.today():
-            renk, kalinlik = TEMA_RENKLERI["durum_bekliyor"], 2
+            renk, kalinlik = TEMA_RENKLERI["durum_tamamlandi"], 2
         else:
             renk, kalinlik = TEMA_RENKLERI["kenarlik"], 1
         hucre.configure(border_color=renk, border_width=kalinlik)
@@ -564,7 +564,7 @@ class TakvimEkrani(ctk.CTkFrame):
                     TEMA_RENKLERI["vurgu"]
                     if secili_mi
                     else (
-                        TEMA_RENKLERI["durum_bekliyor"]
+                        TEMA_RENKLERI["durum_tamamlandi"]
                         if bugun_mu
                         else TEMA_RENKLERI["kenarlik"]
                     )
