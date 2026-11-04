@@ -324,8 +324,8 @@ class PanelEkrani(ctk.CTkFrame):
                     if fark.total_seconds() < 0:
                         # Gecikmis termin
                         yaklasan_terminler.append(k)
-                    elif fark <= datetime.timedelta(days=db.ayar_sayi("termin_esik_gun", 5)):
-                        # 5 gun icinde teslim
+                    elif fark <= datetime.timedelta(days=db.ayar_sayi("termin_esik_gun", 3)):
+                        # 3 gun icinde teslim
                         yaklasan_terminler.append(k)
 
         # KPI kartlarini guncelle

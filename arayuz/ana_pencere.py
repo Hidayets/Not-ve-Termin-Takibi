@@ -18,7 +18,6 @@ from arayuz.sayfa_gorevler import GorevlerEkrani
 from arayuz.sayfa_notlar import NotlarEkrani
 from arayuz.sayfa_panel import PanelEkrani
 from arayuz.sayfa_takvim import TakvimEkrani
-from arayuz.sayfa_tamamlananlar import TamamlananlarEkrani
 from arayuz.sayfa_terminler import TerminlerEkrani
 from arayuz.tema import FONT_FAMILY, TEMA_RENKLERI, font
 from arayuz.uyari_penceresi import UyariPenceresi
@@ -33,10 +32,11 @@ BOLUMLER = [
     ("terminler", "📁  Evrak & Termin"),
     ("takvim", "📅  Takvim"),
     ("bildirimler", "🔔  Bildirimler"),
-    ("tamamlananlar", "🎯  Tamamlananlar"),
     ("cop", "♻️  Geri Dönüşüm"),
     ("ayarlar", "⚙️  Ayarlar"),
 ]
+
+BOLUM_KODLARI = {kod for kod, _ in BOLUMLER}
 
 # Ctrl+1..9 klavye kisayollari (gorunum sirasindan bagimsiz sabit eslesme).
 KISAYOL_BOLUMLERI = [
@@ -46,7 +46,6 @@ KISAYOL_BOLUMLERI = [
     "terminler",
     "takvim",
     "bildirimler",
-    "tamamlananlar",
     "cop",
     "ayarlar",
 ]
@@ -68,6 +67,9 @@ class AnaPencere(ctk.CTk):
         self.aktif_bolum: str = "panel"
         self.sayfalar: dict[str, ctk.CTkFrame] = {}
         self.nav_butonlari: dict[str, ctk.CTkButton] = {}
+        # Veri degistiginde yeniden cizilmesi gereken sayfalar. Gecis hizini
+        # korumak icin sayfa yalnizca ilk gosterimde ve kirliyse yenilenir.
+        self._kirli: set[str] = set()
 
         # Ana Izgara: Sol Yan Menu (240px) + Sag Ana Bolge
         self.grid_columnconfigure(0, weight=0, minsize=240)
@@ -81,8 +83,7 @@ class AnaPencere(ctk.CTk):
         self._yan_menuyu_olustur()
         self._sag_bolgeyi_olustur()
 
-        # Sayfalari olustur
-        self._sayfalari_hazirla()
+        # Sayfalar ilk gosterimde tembel olarak olusturulur (acilis hizli kalir)
         self.bolum_goster("panel")
         self.ozet_sayaclari_guncelle()
         self._kisayollari_bagla()
@@ -272,22 +273,26 @@ class AnaPencere(ctk.CTk):
         self.icerik_alani.grid_columnconfigure(0, weight=1)
         self.icerik_alani.grid_rowconfigure(0, weight=1)
 
-    def _sayfalari_hazirla(self) -> None:
-        """Tum sayfa bilesenlerini olusturur."""
-        self.sayfalar["panel"] = PanelEkrani(self.icerik_alani, self)
-        self.sayfalar["notlar"] = NotlarEkrani(self.icerik_alani, self)
-        self.sayfalar["gorevler"] = GorevlerEkrani(self.icerik_alani, self)
-        self.sayfalar["aylik"] = AylikGorevlerEkrani(self.icerik_alani, self)
-        self.sayfalar["terminler"] = TerminlerEkrani(self.icerik_alani, self)
-        self.sayfalar["takvim"] = TakvimEkrani(self.icerik_alani, self)
-        self.sayfalar["bildirimler"] = BildirimlerEkrani(self.icerik_alani, self)
-        self.sayfalar["tamamlananlar"] = TamamlananlarEkrani(self.icerik_alani, self)
-        self.sayfalar["cop"] = CopKutusuEkrani(self.icerik_alani, self)
-        self.sayfalar["ayarlar"] = AyarlarEkrani(self.icerik_alani, self)
+    def _sayfa_olustur(self, kod: str) -> ctk.CTkFrame:
+        """Bir sayfayi ilk gosteriminde olusturur ve onbellege alir."""
+        olusturucular = {
+            "panel": lambda: PanelEkrani(self.icerik_alani, self),
+            "notlar": lambda: NotlarEkrani(self.icerik_alani, self),
+            "gorevler": lambda: GorevlerEkrani(self.icerik_alani, self),
+            "aylik": lambda: AylikGorevlerEkrani(self.icerik_alani, self),
+            "terminler": lambda: TerminlerEkrani(self.icerik_alani, self),
+            "takvim": lambda: TakvimEkrani(self.icerik_alani, self),
+            "bildirimler": lambda: BildirimlerEkrani(self.icerik_alani, self),
+            "cop": lambda: CopKutusuEkrani(self.icerik_alani, self),
+            "ayarlar": lambda: AyarlarEkrani(self.icerik_alani, self),
+        }
+        sayfa = olusturucular[kod]()
+        self.sayfalar[kod] = sayfa
+        return sayfa
 
     def bolum_goster(self, kod: str) -> None:
         """Secilen bolumu on plana cikarir, sidebar butonunu aktifler."""
-        if kod not in self.sayfalar:
+        if kod not in BOLUM_KODLARI:
             return
 
         self.aktif_bolum = kod
@@ -316,22 +321,30 @@ class AnaPencere(ctk.CTk):
             "terminler": "Evrak & Termin Yönetimi",
             "takvim": "Takvim Planı",
             "bildirimler": "Bildirim Merkezi",
-            "tamamlananlar": "Tamamlanan İşler",
             "cop": "Geri Dönüşüm Kutusu",
             "ayarlar": "Uygulama Ayarları",
         }
         self.lbl_sayfa_baslik.configure(text=baslik_haritasi.get(kod, "Panel"))
 
-        # Sayfayi goster (grid degisimi aninda; agir yeni-leme bir sonraki
-        # dongu adimina ertelenir, boylece gecis "tiklar tiklamaz" hissi verir)
+        # Sayfa yalnizca ilk gosterimde olusturulur; boylece acilis hizli kalir.
+        yeni = kod not in self.sayfalar
+        if yeni:
+            self._sayfa_olustur(kod)
+            self._kirli.discard(kod)
+
         for k, sayfa in self.sayfalar.items():
             if k == kod:
                 sayfa.grid(row=0, column=0, sticky="nsew")
             else:
                 sayfa.grid_remove()
 
-        hedef = self.sayfalar[kod]
-        self.after_idle(lambda s=hedef, k=kod: self._sayfayi_yenile(s, k))
+        # Veri degismedikce sayfa yeniden cizilmez; sekmeler arasi gecis
+        # aninda gerceklesir. Yalnizca kirli sayfalar bir sonraki dongu adiminda
+        # (tiklar tiklamaz hissi icin) yenilenir.
+        if not yeni and kod in self._kirli:
+            self._kirli.discard(kod)
+            hedef = self.sayfalar[kod]
+            self.after_idle(lambda s=hedef, k=kod: self._sayfayi_yenile(s, k))
         self.after_idle(self.ozet_sayaclari_guncelle)
 
     def _sayfayi_yenile(self, sayfa, kod: str) -> None:
@@ -372,7 +385,7 @@ class AnaPencere(ctk.CTk):
             if tur == "termin":
                 if zaman:
                     fark = zaman - simdi
-                    if fark <= datetime.timedelta(days=db.ayar_sayi("termin_esik_gun", 5)):
+                    if fark <= datetime.timedelta(days=db.ayar_sayi("termin_esik_gun", 3)):
                         termin_sayisi += 1
 
         self.lbl_ozet_bugun.configure(text=f"📌 Bugün: {bugun_sayisi} iş")
@@ -381,10 +394,16 @@ class AnaPencere(ctk.CTk):
 
     # ------------------------------------------------------------- Islemler
     def yenile(self) -> None:
-        """Tum sayfalari ve ozetleri yeniler."""
+        """Veri degisti: olusturulmus tum sayfalari kirli isaretle.
+
+        Yalnizca aktif sayfa hemen yeniden cizilir; digerleri kullanici o
+        bolume gectiginde tazelenir. Bu sayede gecisler hizli kalir.
+        """
+        self._kirli = set(self.sayfalar)
         aktif = self.sayfalar.get(self.aktif_bolum)
-        if aktif and hasattr(aktif, "yenile"):
+        if aktif is not None and hasattr(aktif, "yenile"):
             aktif.yenile()
+            self._kirli.discard(self.aktif_bolum)
         self.ozet_sayaclari_guncelle()
 
     def sekme_goster(self, ad: str) -> None:
@@ -394,7 +413,7 @@ class AnaPencere(ctk.CTk):
             "Yeni Not": "notlar",
             "Bekleyen Notlar": "notlar",
             "Geciken Notlar": "panel",
-            "Tamamlananlar": "tamamlananlar",
+            "Tamamlananlar": "aylik",
             "Takvim": "takvim",
             "Ayarlar": "ayarlar",
             "Geri Dönüşüm": "cop",

@@ -13,7 +13,7 @@ import customtkinter as ctk
 import db
 import reminder
 from arayuz.tema import ONCELIK_RENKLERI, TEMA_RENKLERI, font
-from arayuz.widgetlar import rozet
+from arayuz.widgetlar import NotKarti, rozet
 
 
 class AylikOzetKarti(ctk.CTkFrame):
@@ -87,13 +87,21 @@ class AylikOzetKarti(ctk.CTkFrame):
         toplam = 0
         yapilan = 0
         for kayit in db.tum_notlar():
-            if not reminder.aylik_gorev_mi(kayit):
+            if (kayit.get("tekrar_tipi") or "tek") != "aylik" or kayit.get("silindi"):
                 continue
             gunler = reminder.aylik_gorev_gunleri(kayit, self.yil, self.ay)
             if not gunler:
                 continue
+            # Tamamlanmis (durum=tamamlandi) aylik gorevler de listede kalir ve
+            # tum gunleri yapilmis sayilir; boylece cubuk gorev tamamlandikca
+            # ilerler, gorev listeden dusup cubuk geri gitmez.
+            hepsi_tamam = kayit.get("durum") == "tamamlandi"
             durumlar = [
-                (gun, reminder.aylik_gun_tamamlandi_mi(kayit, self._anahtar(gun)))
+                (
+                    gun,
+                    hepsi_tamam
+                    or reminder.aylik_gun_tamamlandi_mi(kayit, self._anahtar(gun)),
+                )
                 for gun in gunler
             ]
             toplam += len(durumlar)
@@ -135,6 +143,7 @@ class AylikOzetKarti(ctk.CTkFrame):
         # Tam sayfa kullaniminda ayin tum kayitlari (Not / Gorev / Termin) listelenir.
         if self.doldur:
             self._ay_kayitlarini_ciz()
+            self._tamamlananlari_ciz()
 
     # ------------------------------------------------- ayin tum kayitlari
     def _ay_kayitlari(self) -> dict[datetime.date, list[tuple[dict, datetime.datetime]]]:
@@ -178,6 +187,53 @@ class AylikOzetKarti(ctk.CTkFrame):
             self._gun_basligi_ciz(gun, len(gruplar[gun]))
             for kayit, olay in gruplar[gun]:
                 self._kayit_satiri_ciz(kayit, olay)
+
+    # ------------------------------------------- tamamlanan kayitlar bolumu
+    def _tamamlananlari_ciz(self) -> None:
+        """Tamamlanmis kayitlari (Not / Gorev / Termin) en son tamamlanan ustte listeler.
+
+        Eski "Tamamlananlar" sekmesi kaldirildigi icin bu bolum ayni islevi
+        Aylik Gorevler sayfasi icinde surdurur.
+        """
+        tamamlananlar = []
+        for kayit in db.tum_notlar():
+            tamam = (
+                kayit.get("durum") == "tamamlandi"
+                or kayit.get("tamamlanan_donem") is not None
+                or int(kayit.get("ilerleme") or 0) == 100
+                or kayit.get("evrak_durum") == "Onaylandı"
+            )
+            if tamam:
+                tamamlananlar.append(kayit)
+        tamamlananlar.sort(
+            key=lambda x: reminder.dt_parse(x.get("tamamlanma_zamani"))
+            or datetime.datetime.min,
+            reverse=True,
+        )
+
+        ctk.CTkFrame(self.govde, height=1, fg_color=TEMA_RENKLERI["kenarlik"]).pack(
+            fill="x", padx=4, pady=(14, 6)
+        )
+        ctk.CTkLabel(
+            self.govde,
+            text=f"🎯 Tamamlanan Kayıtlar  ({len(tamamlananlar)} kayıt)",
+            font=font(13, weight="bold"),
+            text_color=TEMA_RENKLERI["metin_ana"],
+        ).pack(anchor="w", padx=6, pady=(0, 4))
+
+        if not tamamlananlar:
+            ctk.CTkLabel(
+                self.govde,
+                text="Henüz tamamlanmış bir kayıt bulunmuyor.",
+                font=font(12),
+                text_color=TEMA_RENKLERI["metin_soluk"],
+            ).pack(anchor="w", padx=6, pady=(0, 6))
+            return
+
+        for kayit in tamamlananlar:
+            NotKarti(self.govde, self.pencere, kayit, mod="tamamlanan").pack(
+                fill="x", padx=14, pady=3
+            )
 
     def _gun_basligi_ciz(self, gun: datetime.date, adet: int) -> None:
         satir = ctk.CTkFrame(self.govde, fg_color="transparent")

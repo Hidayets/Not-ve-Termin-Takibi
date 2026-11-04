@@ -589,7 +589,7 @@ class TerminKarti(ctk.CTkFrame):
         yaklasiyor = bool(
             zaman
             and not gecikti
-            and (zaman - simdi) <= datetime.timedelta(days=db.ayar_sayi("termin_esik_gun", 5))
+            and (zaman - simdi) <= datetime.timedelta(days=db.ayar_sayi("termin_esik_gun", 3))
             and kayit.get("durum") != "tamamlandi"
         )
 

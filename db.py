@@ -9,7 +9,7 @@ import sqlite3
 import sys
 
 UYGULAMA_ADI = "Notlarım & Termin Takibi"
-SURUM = "1.1"
+SURUM = "1.2"
 # Kullanici verisinin tutuldugu klasor adi (kullanici profilinde).
 VERI_KLASOR_ADI = "NotlarimVeTerminTakibi"
 
@@ -84,7 +84,7 @@ VARSAYILAN_AYARLAR = {
     "gunluk_yedek": "1",
     "yedek_klasoru": VARSAYILAN_YEDEK_KLASORU,
     "yedek_saklama_gun": "30",
-    "termin_esik_gun": "5",
+    "termin_esik_gun": "3",
     "guncelleme_otomatik": "1",
     "guncelleme_kontrol_saat": "6",
     "guncelleme_repo": "Hidayets/Not-ve-Termin-Takibi",
@@ -254,6 +254,13 @@ def veritabani_olustur() -> None:
                 "INSERT OR IGNORE INTO ayarlar (anahtar, deger) VALUES (?, ?)",
                 (anahtar, str(deger)),
             )
+    # Eski surumde varsayilan 5 gundu; yeni varsayilan 3 gune cekilir.
+    # Kullanicinin bilincli olarak 5 secmesi disindaki degerler korunur.
+    with baglan() as baglanti:
+        baglanti.execute(
+            "UPDATE ayarlar SET deger = '3' "
+            "WHERE anahtar = 'termin_esik_gun' AND deger = '5'"
+        )
     # Eski surumden gelen veri varsa yedek klasoru ayarini yeni konuma tasi.
     _yedek_ayarini_guncelle()
 

@@ -243,7 +243,7 @@ class AyarlarEkrani(ctk.CTkFrame):
             _olustur_esik,
             "Kaç gün kala riskli olarak gösterilsin.",
         )
-        esik.set(str(db.ayar_sayi("termin_esik_gun", 5)))
+        esik.set(str(db.ayar_sayi("termin_esik_gun", 3)))
 
     # ------------------------------------------------------------- Windows
     def _kart_windows(self) -> None:

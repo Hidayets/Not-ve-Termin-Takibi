@@ -559,22 +559,27 @@ class TakvimEkrani(ctk.CTkFrame):
 
                 kayitlar = self._gun_kayitlari_onbellek.get(gun, [])
 
-                # Cerceve
-                kenar_renk = (
-                    TEMA_RENKLERI["vurgu"]
-                    if secili_mi
-                    else (
-                        TEMA_RENKLERI["durum_tamamlandi"]
-                        if bugun_mu
-                        else TEMA_RENKLERI["kenarlik"]
-                    )
-                )
-                kenar_w = 2 if (secili_mi or bugun_mu) else 1
+                # Bugun her zaman yesil arka planla vurgulanir. Secili gun ise
+                # mavi cerceveyle ayrica belirtilir; secili gun bugun de olabilir,
+                # bu yuzden ikisi ayri katman olarak ele alinir.
+                if bugun_mu:
+                    arka_renk = ("#DCFCE7", "#064E3B")
+                elif ayni_ay:
+                    arka_renk = TEMA_RENKLERI["bg_kart_ic"]
+                else:
+                    arka_renk = ("#F1F5F9", "#0F172A")
+
+                if secili_mi:
+                    kenar_renk, kenar_w = TEMA_RENKLERI["vurgu"], 2
+                elif bugun_mu:
+                    kenar_renk, kenar_w = TEMA_RENKLERI["durum_tamamlandi"], 2
+                else:
+                    kenar_renk, kenar_w = TEMA_RENKLERI["kenarlik"], 1
 
                 hucre = ctk.CTkFrame(
                     self.izgara,
                     width=10,
-                    fg_color=TEMA_RENKLERI["bg_kart_ic"] if ayni_ay else ("#F1F5F9", "#0F172A"),
+                    fg_color=arka_renk,
                     border_width=kenar_w,
                     border_color=kenar_renk,
                     corner_radius=6,
