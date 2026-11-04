@@ -79,6 +79,10 @@ class NotHatirlatici:
                     return
                 try:
                     self.bildirim_komutlarini_isle()
+                    if sistem.guncelleme_sinyali_oku():
+                        # Yeniden baslatan ornek guncellemeyi kurmamizi istedi.
+                        self.guncellemeyi_uygula_ve_cik()
+                        return
                     if sistem.goster_sinyali_oku():
                         self.pencere.after(0, lambda: self.pencere.pencereyi_goster())
                 except Exception as hata:
@@ -223,6 +227,19 @@ class NotHatirlatici:
         self.arayuzu_yenile()
 
     # ------------------------------------------------------------- yasam dongusu
+    def guncellemeyi_uygula_ve_cik(self) -> None:
+        """Indirilen guncellemeyi kurar ve uygulamayi kapatir.
+
+        Yardimci toplu is dosyasi bu surec kapandiktan sonra exe'yi degistirip
+        yeni surumu otomatik baslatir. Boylece uygulama yeniden acildiginda
+        guncelleme devreye girmis olur.
+        """
+        if guncelleme.guncellemeyi_uygula():
+            self.pencere.after(0, self.cikis)
+        else:
+            # Kurulamadiysa (or. gelistirme modu) pencereyi one getirmekle yetin.
+            self.pencere.after(0, lambda: self.pencere.pencereyi_goster())
+
     def cikis(self) -> None:
         if not self.calisiyor:
             return
@@ -246,12 +263,19 @@ def main() -> None:
     if komut_uri is not None:
         notifier.protokol_isle(komut_uri)
         return
-    # Ayni anda yalnizca bir ornek calisabilir; ikinci deneme mevcut pencereyi one getirir.
+    # Indirilmis ve kurulmayi bekleyen guncelleme var mi?
+    bekleyen = guncelleme.bekleyen_guncelleme()
+    # Ayni anda yalnizca bir ornek calisabilir.
     if not sistem.kilit_al():
-        sistem.goster_sinyali_gonder()
+        # Baska bir ornek (or. tepsidе) calisiyor. Guncelleme bekliyorsa ondan
+        # guncellemeyi kurup yeniden baslatmasini iste; yoksa pencereyi one getir.
+        if bekleyen is not None:
+            sistem.guncelleme_sinyali_gonder()
+        else:
+            sistem.goster_sinyali_gonder()
         return
-    # Arka planda indirilmis guncelleme varsa kur ve yeni surumle yeniden baslat.
-    if guncelleme.bekleyen_guncelleme() is not None and guncelleme.guncellemeyi_uygula():
+    # Uygulama yeniden acildi ve guncelleme hazir: kur ve yeni surumle basla.
+    if bekleyen is not None and guncelleme.guncellemeyi_uygula():
         return
     uygulama = NotHatirlatici()
     uygulama.calistir()

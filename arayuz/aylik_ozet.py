@@ -1,7 +1,8 @@
-"""Aylik gorevlerin gun bazli takibi.
+"""Aylik gorevler ozeti: bu ayin tamamlanma durumu ve tamamlanan kayitlar.
 
-Bu ayin gun bazli aylik gorevlerini ilerleme cubugu ile ozetler; her gun
-tiklanabilir bir cip olarak gosterilir ve tek tek isaretlenir.
+Sayfa yalnizca ilerleme cubugunu ve bu ay tamamlanmis kayitlari listeler;
+bekleyen kayitlar burada gosterilmez. "Bugun Yapilacaklar" listesinden
+yapildi isaretlenen kayitlar bu sayfaya duserek cubugu ilerletir.
 """
 from __future__ import annotations
 
@@ -12,12 +13,12 @@ import customtkinter as ctk
 
 import db
 import reminder
-from arayuz.tema import ONCELIK_RENKLERI, TEMA_RENKLERI, font
-from arayuz.widgetlar import NotKarti, rozet
+from arayuz.tema import TEMA_RENKLERI, font
+from arayuz.widgetlar import NotKarti
 
 
 class AylikOzetKarti(ctk.CTkFrame):
-    """Bu ayin gun bazli aylik gorevlerini gosteren ozet karti.
+    """Bu ayin tamamlanma durumunu ve tamamlanan kayitlari gosteren ozet karti.
 
     doldur=True iken govde tum alani kaplayacak sekilde genisler (tam sayfa
     kullanimi icin); varsayilan davranis sabit yukseklikli kompakt karttir.
@@ -70,9 +71,6 @@ class AylikOzetKarti(ctk.CTkFrame):
         self.yenile()
 
     # ------------------------------------------------------------------ cizim
-    def _anahtar(self, gun: int) -> str:
-        return f"{self.yil:04d}-{self.ay:02d}-{gun:02d}"
-
     def yenile(self) -> None:
         bugun = datetime.date.today()
         self.yil, self.ay = bugun.year, bugun.month
@@ -83,30 +81,19 @@ class AylikOzetKarti(ctk.CTkFrame):
         for cocuk in self.govde.winfo_children():
             cocuk.destroy()
 
-        satirlar = []
-        toplam = 0
-        yapilan = 0
-        for kayit in db.tum_notlar():
-            if (kayit.get("tekrar_tipi") or "tek") != "aylik" or kayit.get("silindi"):
-                continue
-            gunler = reminder.aylik_gorev_gunleri(kayit, self.yil, self.ay)
-            if not gunler:
-                continue
-            # Tamamlanmis (durum=tamamlandi) aylik gorevler de listede kalir ve
-            # tum gunleri yapilmis sayilir; boylece cubuk gorev tamamlandikca
-            # ilerler, gorev listeden dusup cubuk geri gitmez.
-            hepsi_tamam = kayit.get("durum") == "tamamlandi"
-            durumlar = [
-                (
-                    gun,
-                    hepsi_tamam
-                    or reminder.aylik_gun_tamamlandi_mi(kayit, self._anahtar(gun)),
-                )
-                for gun in gunler
-            ]
-            toplam += len(durumlar)
-            yapilan += sum(1 for _, tamam in durumlar if tamam)
-            satirlar.append((kayit, durumlar))
+        # Bu ay icinde planlanan her kayit ve o kayda ait olay zamanlari.
+        kayit_olaylari: dict[int, tuple[dict, list[datetime.datetime]]] = {}
+        for gun_kayitlari in self._ay_kayitlari().values():
+            for kayit, olay in gun_kayitlari:
+                girdi = kayit_olaylari.setdefault(kayit.get("id"), (kayit, []))
+                girdi[1].append(olay)
+
+        toplam = len(kayit_olaylari)
+        yapilan = sum(
+            1
+            for kayit, olaylar in kayit_olaylari.values()
+            if self._kayit_tamam_mi(kayit, olaylar)
+        )
 
         if toplam:
             oran = yapilan / toplam
@@ -117,33 +104,39 @@ class AylikOzetKarti(ctk.CTkFrame):
                 else TEMA_RENKLERI["durum_bekliyor"]
             )
             self.durum.configure(
-                text=f"{yapilan}/{toplam} gün tamamlandı (%{int(round(oran * 100))})"
+                text=f"{yapilan}/{toplam} kayıt tamamlandı (%{int(round(oran * 100))})"
             )
         else:
             self.cubuk.set(0)
             self.cubuk.configure(progress_color=TEMA_RENKLERI["durum_bekliyor"])
-            self.durum.configure(text="Bu ay için aylık görev yok")
+            self.durum.configure(text="Bu ay için kayıt yok")
 
-        if not satirlar:
-            ctk.CTkLabel(
-                self.govde,
-                text=(
-                    "Bu ay için tanımlı aylık görev yok. \"+ Yeni Ekle\" ile bir görev "
-                    "oluşturup Tekrar olarak \"Aylık\" ve kural olarak \"Gün listesi\" seçin."
-                ),
-                text_color=TEMA_RENKLERI["metin_soluk"],
-                wraplength=820,
-                justify="left",
-                font=font(12),
-            ).pack(anchor="w", padx=6, pady=6)
-        else:
-            for kayit, durumlar in satirlar:
-                self._satir_ciz(kayit, durumlar)
+        # Bekleyen kayitlar bu sayfada listelenmez; yalnizca tamamlananlar gosterilir.
+        self._tamamlananlari_ciz(kayit_olaylari)
 
-        # Tam sayfa kullaniminda ayin tum kayitlari (Not / Gorev / Termin) listelenir.
-        if self.doldur:
-            self._ay_kayitlarini_ciz()
-            self._tamamlananlari_ciz()
+    # ------------------------------------------------- tamamlanma yardimcilari
+    def _kayit_tamam_mi(self, kayit: dict, olaylar: list[datetime.datetime]) -> bool:
+        """Kayit bu ay icin tamamlanmis sayilir mi?"""
+        if kayit.get("durum") == "tamamlandi":
+            return True
+        if int(kayit.get("ilerleme") or 0) == 100:
+            return True
+        if kayit.get("evrak_durum") == "Onaylandı":
+            return True
+        # Tekrarli / gun listeli kayitlarda bu ayki tum olaylarin donemi isaretli olmali.
+        return bool(olaylar) and all(reminder.tamamlandi_mi(kayit, o) for o in olaylar)
+
+    def _bu_ay_tamamlandi_mi(self, kayit: dict) -> bool:
+        """Kayit bu ay icinde tamamlanmis mi? (tamamlanma zamani bu aya ait)"""
+        zaman = reminder.dt_parse(kayit.get("tamamlanma_zamani"))
+        if zaman is None or zaman.year != self.yil or zaman.month != self.ay:
+            return False
+        return (
+            kayit.get("durum") == "tamamlandi"
+            or kayit.get("tamamlanan_donem") is not None
+            or int(kayit.get("ilerleme") or 0) == 100
+            or kayit.get("evrak_durum") == "Onaylandı"
+        )
 
     # ------------------------------------------------- ayin tum kayitlari
     def _ay_kayitlari(self) -> dict[datetime.date, list[tuple[dict, datetime.datetime]]]:
@@ -161,50 +154,28 @@ class AylikOzetKarti(ctk.CTkFrame):
             kayitlar.sort(key=lambda t: t[1])
         return gruplar
 
-    def _ay_kayitlarini_ciz(self) -> None:
-        gruplar = self._ay_kayitlari()
-
-        ctk.CTkFrame(self.govde, height=1, fg_color=TEMA_RENKLERI["kenarlik"]).pack(
-            fill="x", padx=4, pady=(12, 6)
-        )
-        ctk.CTkLabel(
-            self.govde,
-            text=f"📋 Bu Ayın Tüm Kayıtları — Not • Görev • Evrak Termin  ({len(gruplar)} gün)",
-            font=font(13, weight="bold"),
-            text_color=TEMA_RENKLERI["metin_ana"],
-        ).pack(anchor="w", padx=6, pady=(0, 4))
-
-        if not gruplar:
-            ctk.CTkLabel(
-                self.govde,
-                text="Bu ay içinde planlanmış kayıt bulunmuyor.",
-                font=font(12),
-                text_color=TEMA_RENKLERI["metin_soluk"],
-            ).pack(anchor="w", padx=6, pady=(0, 6))
-            return
-
-        for gun in sorted(gruplar):
-            self._gun_basligi_ciz(gun, len(gruplar[gun]))
-            for kayit, olay in gruplar[gun]:
-                self._kayit_satiri_ciz(kayit, olay)
-
     # ------------------------------------------- tamamlanan kayitlar bolumu
-    def _tamamlananlari_ciz(self) -> None:
-        """Tamamlanmis kayitlari (Not / Gorev / Termin) en son tamamlanan ustte listeler.
+    def _tamamlananlari_ciz(
+        self, kayit_olaylari: dict[int, tuple[dict, list[datetime.datetime]]]
+    ) -> None:
+        """Bu ay tamamlanmis kayitlari en son tamamlanan ustte listeler.
 
-        Eski "Tamamlananlar" sekmesi kaldirildigi icin bu bolum ayni islevi
-        Aylik Gorevler sayfasi icinde surdurur.
+        Kapsam: bu ay planlanmis ve tamamlanmis kayitlar ile bu ay icinde
+        tamamlanmis olanlar. Eski "Tamamlananlar" sekmesi kaldirildigi icin
+        bu bolum ayni islevi Aylik Gorevler sayfasi icinde surdurur.
         """
-        tamamlananlar = []
+        tamamlananlar: list[dict] = [
+            kayit
+            for kayit, olaylar in kayit_olaylari.values()
+            if self._kayit_tamam_mi(kayit, olaylar)
+        ]
+        bu_ay_idler = {kayit.get("id") for kayit, _ in kayit_olaylari.values()}
         for kayit in db.tum_notlar():
-            tamam = (
-                kayit.get("durum") == "tamamlandi"
-                or kayit.get("tamamlanan_donem") is not None
-                or int(kayit.get("ilerleme") or 0) == 100
-                or kayit.get("evrak_durum") == "Onaylandı"
-            )
-            if tamam:
+            if kayit.get("id") in bu_ay_idler:
+                continue
+            if self._bu_ay_tamamlandi_mi(kayit):
                 tamamlananlar.append(kayit)
+
         tamamlananlar.sort(
             key=lambda x: reminder.dt_parse(x.get("tamamlanma_zamani"))
             or datetime.datetime.min,
@@ -216,7 +187,7 @@ class AylikOzetKarti(ctk.CTkFrame):
         )
         ctk.CTkLabel(
             self.govde,
-            text=f"🎯 Tamamlanan Kayıtlar  ({len(tamamlananlar)} kayıt)",
+            text=f"🎯 Bu Ay Tamamlananlar  ({len(tamamlananlar)} kayıt)",
             font=font(13, weight="bold"),
             text_color=TEMA_RENKLERI["metin_ana"],
         ).pack(anchor="w", padx=6, pady=(0, 4))
@@ -224,9 +195,14 @@ class AylikOzetKarti(ctk.CTkFrame):
         if not tamamlananlar:
             ctk.CTkLabel(
                 self.govde,
-                text="Henüz tamamlanmış bir kayıt bulunmuyor.",
+                text=(
+                    "Bu ay tamamlanmış bir kayıt bulunmuyor. \"Bugün Yapılacaklar\" "
+                    "listesinden bir işi yapıldı olarak işaretlediğinizde burada görünür."
+                ),
                 font=font(12),
                 text_color=TEMA_RENKLERI["metin_soluk"],
+                wraplength=820,
+                justify="left",
             ).pack(anchor="w", padx=6, pady=(0, 6))
             return
 
@@ -234,136 +210,6 @@ class AylikOzetKarti(ctk.CTkFrame):
             NotKarti(self.govde, self.pencere, kayit, mod="tamamlanan").pack(
                 fill="x", padx=14, pady=3
             )
-
-    def _gun_basligi_ciz(self, gun: datetime.date, adet: int) -> None:
-        satir = ctk.CTkFrame(self.govde, fg_color="transparent")
-        satir.pack(fill="x", padx=6, pady=(8, 2))
-        ctk.CTkLabel(
-            satir,
-            text=f"{gun.day:02d} {reminder.AY_ADLARI[gun.month - 1]} — "
-            f"{reminder.GUN_ADLARI[gun.weekday()]}",
-            font=font(12, weight="bold"),
-            text_color=TEMA_RENKLERI["vurgu"],
-        ).pack(side="left")
-        ctk.CTkLabel(
-            satir,
-            text=f"  ({adet} kayıt)",
-            font=font(11),
-            text_color=TEMA_RENKLERI["metin_soluk"],
-        ).pack(side="left")
-
-    def _kayit_satiri_ciz(self, kayit: dict, olay: datetime.datetime) -> None:
-        tur = kayit.get("tur") or "not"
-        isaret = {"gorev": "✅", "termin": "⏳"}.get(tur, "📝")
-
-        satir = ctk.CTkFrame(
-            self.govde, fg_color=TEMA_RENKLERI["bg_kart_ic"], corner_radius=6
-        )
-        satir.pack(fill="x", padx=14, pady=1)
-
-        ic = ctk.CTkFrame(satir, fg_color="transparent")
-        ic.pack(fill="x", padx=10, pady=4)
-
-        ctk.CTkLabel(
-            ic,
-            text=olay.strftime("%H:%M"),
-            width=44,
-            font=font(11, weight="bold"),
-            text_color=TEMA_RENKLERI["metin_soluk"],
-            anchor="w",
-        ).pack(side="left")
-
-        ctk.CTkLabel(
-            ic,
-            text=f"{isaret} {kayit.get('baslik') or '(başlıksız)'}",
-            font=font(12),
-            text_color=TEMA_RENKLERI["metin_ana"],
-            anchor="w",
-        ).pack(side="left")
-
-        durum_metni, durum_renk = self._kayit_durumu(kayit)
-        if durum_metni:
-            rozet(ic, durum_metni, durum_renk).pack(side="right", padx=(6, 0))
-
-    def _kayit_durumu(self, kayit: dict) -> tuple[str, tuple]:
-        """Kaydin turune gore kisa durum metni ve rozet rengi."""
-        tur = kayit.get("tur") or "not"
-        if tur == "gorev":
-            ilerleme = int(kayit.get("ilerleme") or 0)
-            if ilerleme >= 100 or kayit.get("durum") == "tamamlandi":
-                return "Tamamlandı", TEMA_RENKLERI["durum_tamamlandi"]
-            zaman = reminder.not_zamani(kayit)
-            if zaman and zaman < datetime.datetime.now():
-                return f"Gecikti · %{ilerleme}", TEMA_RENKLERI["durum_geciken"]
-            return f"Devam · %{ilerleme}", TEMA_RENKLERI["durum_yaklasiyor"]
-        if tur == "termin":
-            durum = kayit.get("evrak_durum") or "Bekliyor"
-            renk = {
-                "Onaylandı": TEMA_RENKLERI["durum_tamamlandi"],
-                "Reddedildi": TEMA_RENKLERI["durum_geciken"],
-                "Gönderildi": ("#4F46E5", "#818CF8"),
-                "Hazırlandı": ("#0284C7", "#38BDF8"),
-            }.get(durum, TEMA_RENKLERI["durum_bekliyor"])
-            return durum, renk
-        oncelik = kayit.get("oncelik") or "Normal"
-        return kayit.get("kategori") or "Genel", ONCELIK_RENKLERI.get(
-            oncelik, TEMA_RENKLERI["durum_bekliyor"]
-        )
-
-    def _satir_ciz(self, kayit: dict, durumlar: list[tuple[int, bool]]) -> None:
-        satir = ctk.CTkFrame(
-            self.govde,
-            fg_color=TEMA_RENKLERI["bg_kart_ic"],
-            corner_radius=8,
-        )
-        satir.pack(fill="x", padx=4, pady=3)
-
-        ust = ctk.CTkFrame(satir, fg_color="transparent")
-        ust.pack(fill="x", padx=10, pady=(6, 2))
-        renk = ONCELIK_RENKLERI.get(
-            kayit.get("oncelik"), TEMA_RENKLERI["durum_bekliyor"]
-        )
-        ctk.CTkLabel(
-            ust,
-            text=kayit.get("baslik", ""),
-            font=font(13, weight="bold"),
-            text_color=renk,
-        ).pack(side="left")
-        ctk.CTkLabel(
-            ust,
-            text=f"  {reminder.tekrar_metni(kayit)}",
-            font=font(11),
-            text_color=TEMA_RENKLERI["metin_soluk"],
-        ).pack(side="left")
-
-        cip_satiri = ctk.CTkFrame(satir, fg_color="transparent")
-        cip_satiri.pack(fill="x", padx=10, pady=(0, 8))
-        ctk.CTkLabel(
-            cip_satiri,
-            text="Günler:",
-            font=font(11),
-            text_color=TEMA_RENKLERI["metin_soluk"],
-        ).pack(side="left", padx=(0, 6))
-        for gun, tamam in durumlar:
-            ctk.CTkButton(
-                cip_satiri,
-                text=str(gun),
-                width=44,
-                height=26,
-                corner_radius=13,
-                font=font(11, weight="bold"),
-                fg_color=TEMA_RENKLERI["durum_tamamlandi"]
-                if tamam
-                else TEMA_RENKLERI["btn_notr"],
-                hover_color=("#15803D", "#059669")
-                if tamam
-                else TEMA_RENKLERI["btn_notr_hover"],
-                text_color="#FFFFFF" if tamam else TEMA_RENKLERI["btn_notr_metin"],
-                command=lambda k=kayit["id"], g=gun, t=tamam: self._degistir(k, g, not t),
-            ).pack(side="left", padx=3)
-
-    def _degistir(self, not_id: int, gun: int, yapildi: bool) -> None:
-        self.uygulama.aylik_gun_degistir(not_id, self._anahtar(gun), yapildi)
 
 
 class AylikGorevlerEkrani(ctk.CTkFrame):
@@ -392,8 +238,9 @@ class AylikGorevlerEkrani(ctk.CTkFrame):
 
         ctk.CTkLabel(
             bilgi,
-            text="Aylık yinelenen görevleri gün gün işaretleyin; ayrıca bu ay içindeki "
-            "tüm Not, Görev ve Evrak Termin kayıtları gün gün listelenir.",
+            text="Bu ay içinde tamamlanan kayıtlar aşağıda listelenir; bekleyen "
+            "kayıtlar burada gösterilmez. \"Bugün Yapılacaklar\" listesinden bir "
+            "işi yapıldı işaretlediğinizde buraya düşer ve çubuk ilerler.",
             font=font(11),
             text_color=TEMA_RENKLERI["metin_soluk"],
         ).pack(side="left", pady=10)

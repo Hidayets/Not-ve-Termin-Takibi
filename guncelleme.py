@@ -6,8 +6,10 @@ Akis:
    klasorune indirilir (uygulama calisirken, arka planda).
 3. Uygulama bir sonraki kez baslatildiginda, indirilen exe yardimci bir
    toplu is dosyasi (bat) ile mevcut exe'nin uzerine yazilir ve uygulama
-   yeniden baslatilir. Boylece guncelleme; uygulama ya da bilgisayar
-   yeniden baslatildiginda devreye girer.
+   yeniden baslatilir. Uygulama tepsidе calisiyor olsa bile yeni bir ornek
+   acildiginda mevcut ornek guncellemeyi kurup yeniden baslar. Boylece
+   guncelleme; uygulama yeniden baslatildiginda (ya da bilgisayar yeniden
+   baslatildiginda) devreye girer.
 """
 from __future__ import annotations
 

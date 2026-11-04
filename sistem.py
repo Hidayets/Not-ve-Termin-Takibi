@@ -112,3 +112,34 @@ def goster_sinyali_oku() -> bool:
     except OSError:
         pass
     return True
+
+
+# --------------------------------------------------- guncelleme sinyali
+def _guncelleme_dosyasi() -> str:
+    """Ikinci ornegin 'guncellemeyi kur ve yeniden baslat' istegi dosyasi."""
+    import db
+
+    return os.path.join(db.VERI_DIR, "_guncelle.json")
+
+
+def guncelleme_sinyali_gonder() -> None:
+    """Calisan ornege 'indirilen guncellemeyi kur ve yeniden baslat' istegi birakir."""
+    try:
+        yol = _guncelleme_dosyasi()
+        os.makedirs(os.path.dirname(yol), exist_ok=True)
+        with open(yol, "w", encoding="utf-8") as dosya:
+            dosya.write("1")
+    except OSError as hata:
+        print("[guncelleme sinyali hatasi]", hata)
+
+
+def guncelleme_sinyali_oku() -> bool:
+    """Bekleyen 'guncellemeyi kur' istegini okur ve temizler."""
+    yol = _guncelleme_dosyasi()
+    if not os.path.exists(yol):
+        return False
+    try:
+        os.remove(yol)
+    except OSError:
+        pass
+    return True
