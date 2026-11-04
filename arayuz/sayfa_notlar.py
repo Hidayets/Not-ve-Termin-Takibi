@@ -8,7 +8,7 @@ import customtkinter as ctk
 import db
 import reminder
 from arayuz.tema import TEMA_RENKLERI, font
-from arayuz.widgetlar import NotKarti
+from arayuz.widgetlar import NotKarti, kartlari_yerlestir, liste_temizle
 
 
 class NotlarEkrani(ctk.CTkFrame):
@@ -88,6 +88,8 @@ class NotlarEkrani(ctk.CTkFrame):
         self.liste = ctk.CTkScrollableFrame(self, fg_color="transparent", label_text="")
         self.liste.pack(fill="both", expand=True, padx=14, pady=(0, 10))
 
+        # Kartlarin gruplar halinde cizilmesi icin nesil takibi.
+        self._yukleme: dict = {}
         self.yenile()
 
     def _filtre_temizle(self) -> None:
@@ -97,8 +99,7 @@ class NotlarEkrani(ctk.CTkFrame):
         self.yenile()
 
     def yenile(self) -> None:
-        for w in self.liste.winfo_children():
-            w.destroy()
+        liste_temizle(self.liste, self._yukleme)
 
         arama = self.arama.get().strip().casefold()
         secili_kat = self.kategori.get()
@@ -140,7 +141,9 @@ class NotlarEkrani(ctk.CTkFrame):
             ).pack(pady=40)
             return
 
-        for k in filtrelenen:
-            NotKarti(self.liste, self.pencere, k, mod="bekleyen").pack(
-                fill="x", pady=4, padx=2
-            )
+        kartlari_yerlestir(
+            self.liste,
+            filtrelenen,
+            lambda k: NotKarti(self.liste, self.pencere, k, mod="bekleyen"),
+            self._yukleme,
+        )

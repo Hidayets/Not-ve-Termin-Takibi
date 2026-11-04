@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime
 import os
+import tkinter as tk
 import tkinter.messagebox as mesaj_kutusu
 
 import customtkinter as ctk
@@ -28,6 +29,92 @@ def rozet(parent, metin: str, bg_renk: str | tuple, text_color: str = "#FFFFFF")
 def onay_iste(baslik: str, mesaj: str) -> bool:
     """Standart Turkce onay penceresi."""
     return mesaj_kutusu.askyesno(baslik, mesaj)
+
+
+def liste_temizle(liste, durum: dict) -> None:
+    """Liste icerigini bosaltir ve bekleyen kart yerlestirmelerini iptal eder."""
+    durum["nesil"] = durum.get("nesil", 0) + 1
+    for w in liste.winfo_children():
+        w.destroy()
+
+
+def kartlari_yerlestir(container, kayitlar, uretici, durum: dict, adim: int = 4, **pack_ayarlari) -> None:
+    """Kartlari artan boyutlu gruplar halinde yerlestirir; arayuz donmaz.
+
+    Kartlar tek seferde degil, kucuk gruplar halinde `after` ile olusturulur.
+    Boylece cok kayitli listelerde sekme gecisleri ve yenilemeler aninda
+    hissedilir (sayfa yenileme hissi olusmaz). `durum` sozlugu nesil takibi
+    icin kullanilir; `liste_temizle` ile nesil artirildiginda onceki bekleyen
+    isler guvenle iptal edilir.
+    """
+    nesil = durum.get("nesil", 0)
+    toplam = len(kayitlar)
+    if toplam == 0:
+        return
+    if not pack_ayarlari:
+        pack_ayarlari = {"fill": "x", "pady": 4, "padx": 2}
+
+    index = 0
+    boyut = adim
+
+    def grup() -> None:
+        nonlocal index, boyut
+        try:
+            if durum.get("nesil") != nesil or not container.winfo_exists():
+                return
+            son = min(index + boyut, toplam)
+            for i in range(index, son):
+                uretici(kayitlar[i]).pack(**pack_ayarlari)
+            index = son
+            if index < toplam:
+                boyut = min(boyut * 2, 24)
+                container.after(1, grup)
+        except Exception:
+            return
+
+    grup()
+
+
+class AcilirButon(ctk.CTkButton):
+    """Tiklayinca yerel bir tk.Menu acan hafif secim butonu.
+
+    CTkOptionMenu her olusturuldugunda ek bir dropdown bileseni urettigi icin
+    yuzlerce kart iceren listelerde belirgin yavaslamaya yol acar. Bu bilesen
+    yalnizca tek bir buton uretir; secenek menusu ilk tiklamada (tembel olarak)
+    olusturulur ve boylece liste sayfalari cok daha hizli cizilir.
+    """
+
+    def __init__(self, parent, secenekler, komut=None, metin=None, **kwargs):
+        if metin is None:
+            metin = str(secenekler[0]) if secenekler else ""
+        super().__init__(parent, text=str(metin), command=self._ac, **kwargs)
+        self._secenekler = [str(s) for s in secenekler]
+        self._komut = komut
+        self._menu = None
+
+    def _ac(self) -> None:
+        if self._menu is None:
+            self._menu = tk.Menu(self, tearoff=0)
+            for s in self._secenekler:
+                self._menu.add_command(label=s, command=lambda sec=s: self._sec(sec))
+        try:
+            self._menu.tk_popup(
+                self.winfo_rootx(), self.winfo_rooty() + self.winfo_height()
+            )
+        finally:
+            self._menu.grab_release()
+
+    def _sec(self, secim: str) -> None:
+        self.configure(text=secim)
+        if self._komut is not None:
+            self._komut(secim)
+
+    def set(self, deger) -> None:
+        """Secili degeri buton uzerinde gosterir (CTkOptionMenu uyumlulugu)."""
+        self.configure(text=str(deger))
+
+    def get(self) -> str:
+        return str(self.cget("text"))
 
 
 class SayiSecici(ctk.CTkFrame):
@@ -346,15 +433,17 @@ class NotKarti(ctk.CTkFrame):
                 command=lambda: self.yapildi(kimlik),
             ).pack(side="left", padx=3)
 
-            ctk.CTkOptionMenu(
+            AcilirButon(
                 kutu,
-                values=list(reminder.ERTELEME_SECENEKLERI.keys()),
+                secenekler=list(reminder.ERTELEME_SECENEKLERI.keys()),
+                komut=lambda s: self.ertele(kimlik, s),
+                metin="⏰ Ertele",
                 width=90,
                 height=30,
                 font=font(11),
                 fg_color=TEMA_RENKLERI["btn_notr"],
                 text_color=TEMA_RENKLERI["btn_notr_metin"],
-                command=lambda s: self.ertele(kimlik, s),
+                hover_color=TEMA_RENKLERI["btn_notr_hover"],
             ).pack(side="left", padx=3)
 
         ctk.CTkButton(
@@ -719,17 +808,18 @@ class TerminKarti(ctk.CTkFrame):
         kutu.grid(row=0, column=2, rowspan=3, sticky="e", padx=(6, 12))
         kimlik = kayit["id"]
 
-        durum_menu = ctk.CTkOptionMenu(
+        durum_menu = AcilirButon(
             kutu,
-            values=["Bekliyor", "Hazırlandı", "Gönderildi", "Onaylandı", "Reddedildi"],
+            secenekler=["Bekliyor", "Hazırlandı", "Gönderildi", "Onaylandı", "Reddedildi"],
+            komut=lambda s: self._durum_degistir(kimlik, s),
+            metin=durum,
             width=110,
             height=28,
             font=font(11),
             fg_color=TEMA_RENKLERI["btn_notr"],
             text_color=TEMA_RENKLERI["btn_notr_metin"],
-            command=lambda s: self._durum_degistir(kimlik, s),
+            hover_color=TEMA_RENKLERI["btn_notr_hover"],
         )
-        durum_menu.set(durum)
         durum_menu.pack(side="left", padx=3)
 
         ctk.CTkButton(

@@ -14,6 +14,25 @@ KILIT_ADI = "NotlarimVeTerminTakibi.TekOranek"
 _ERROR_ALREADY_EXISTS = 183
 _tutamac = None  # mutex tutamaci; surec boyunca canli kalmali
 
+# Windows'un uygulamayi (gorev cubugu simgesi, sabitlenmis kisayol, bildirim)
+# tek ve ayni uygulama olarak gruplayabilmesi icin kullanilan sabit kimlik.
+UYGULAMA_KIMLIGI = "NotlarimVeTerminTakibi"
+
+
+def uygulama_kimligini_ayarla() -> None:
+    """Surecin AppUserModelID'sini ayarlar.
+
+    Gorev cubugu simgesi bu kimlige gore gruplanir ve varsa sabitlenmis
+    kisayolla birlesir. Windows bu degeri yalnizca ilk pencere olusturulmadan
+    ONCE dikkate alir; bu yuzden uygulama acilirken en basta cagrilmalidir.
+    Aksi halde her guncelleme/kurulum sonrasi uygulama gorev cubugunda ayri
+    (ikinci) bir simge gibi gorunur.
+    """
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(UYGULAMA_KIMLIGI)
+    except Exception:
+        pass
+
 
 def uygulama_komutu() -> str:
     """Acilista calistirilacak komut (konsol penceresi gorunmez)."""

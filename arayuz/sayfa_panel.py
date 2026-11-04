@@ -294,16 +294,27 @@ class PanelEkrani(ctk.CTkFrame):
         bu_ay_basi = datetime.date(simdi.year, simdi.month, 1)
 
         for k in tum_kayitlar:
-            tamamlandi = (
+            # Kalici olarak tamamlanmis kayitlar (tek seferlik not, gorev, evrak).
+            kalici_tamam = (
                 k.get("durum") == "tamamlandi"
                 or int(k.get("ilerleme") or 0) == 100
                 or k.get("evrak_durum") == "Onaylandı"
             )
 
-            if tamamlandi:
-                tamam_zamani = reminder.dt_parse(k.get("tamamlanma_zamani"))
-                if tamam_zamani and tamam_zamani.date() >= bu_ay_basi:
-                    bu_ay_tamamlanan.append(k)
+            # Tamamlanma anini belirle. Tekrarlı (or. aylik) notlarda durum
+            # 'bekliyor' kalsa da tamamlanma_zamani, o donemin yapildigi ani
+            # gosterir; boylece ilgili ay icinde yapilan isler de sayilir.
+            tamam_zamani = reminder.dt_parse(k.get("tamamlanma_zamani"))
+            if kalici_tamam and tamam_zamani is None:
+                tamam_zamani = reminder.dt_parse(k.get("guncelleme_zamani"))
+
+            if tamam_zamani is not None and tamam_zamani.date() >= bu_ay_basi:
+                bu_ay_tamamlanan.append(k)
+
+            # Tamamen tamamlanmis kayitlar bekleyen listelerde gosterilmez;
+            # ancak tekrarlı notlarin bu aydaki diger (henuz yapilmamis) gunleri
+            # asagida degerlendirilmeye devam eder.
+            if kalici_tamam:
                 continue
 
             zaman = reminder.not_zamani(k)

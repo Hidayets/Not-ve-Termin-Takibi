@@ -12,6 +12,18 @@ import time
 
 import customtkinter as ctk
 
+# ONEMLI: CustomTkinter, Windows'ta varsayilan olarak "font_shapes" cizim
+# yontemini kullanir. Bu yontem yuvarlak koseleri/daireleri font glifleriyle
+# cizdigi icin her cizimde cok sayida Tcl cagrisi yapar ve sayfa/tema
+# cizimlerini belirgin sekilde yavaslatir. "polygon_shapes" ayni gorunumu cok
+# daha az islemle uretir. Ilk CTk bileseni olusturulmadan once ayarlanmalidir.
+try:
+    from customtkinter.windows.widgets.core_rendering import DrawEngine
+
+    DrawEngine.preferred_drawing_method = "polygon_shapes"
+except Exception:
+    pass
+
 import db
 import guncelleme
 import notifier
@@ -87,6 +99,12 @@ class NotHatirlatici:
     # ------------------------------------------------------------- tema
     def tema_uygula(self) -> None:
         ctk.set_appearance_mode(tema_modu(db.ayar_al("tema", "dark")))
+        # Baslik cubugu rengini pencereyi gizleyip yeniden gostermeden uygula
+        # (CustomTkinter'in varsayilan yontemi ekrani titretir).
+        try:
+            self.pencere.baslik_cubugu_rengini_ayarla()
+        except Exception:
+            pass
 
     # ------------------------------------------------------------- zamanlayici
     def kontrol_dongusu(self) -> None:
@@ -282,6 +300,9 @@ class NotHatirlatici:
 
 
 def main() -> None:
+    # Uygulama kimligi ilk pencere olusturulmadan ONCE ayarlanmali; aksi halde
+    # guncelleme/kurulum sonrasi gorev cubugunda ayri bir simge olarak gorunur.
+    sistem.uygulama_kimligini_ayarla()
     # Windows bildirimindeki bir dugmeye tiklandiysa arayuzu acmadan istegi ilet.
     komut_uri = notifier.protokol_komutu(sys.argv)
     if komut_uri is not None:

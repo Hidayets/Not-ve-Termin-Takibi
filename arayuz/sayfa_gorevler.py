@@ -8,7 +8,7 @@ import customtkinter as ctk
 import db
 import reminder
 from arayuz.tema import TEMA_RENKLERI, font
-from arayuz.widgetlar import GorevKarti, onay_iste, rozet
+from arayuz.widgetlar import GorevKarti, kartlari_yerlestir, liste_temizle, onay_iste, rozet
 
 
 class GorevlerEkrani(ctk.CTkFrame):
@@ -75,11 +75,12 @@ class GorevlerEkrani(ctk.CTkFrame):
         self.liste = ctk.CTkScrollableFrame(self, fg_color="transparent", label_text="")
         self.liste.pack(fill="both", expand=True, padx=14, pady=(0, 10))
 
+        # Kartlarin gruplar halinde cizilmesi icin nesil takibi.
+        self._yukleme: dict = {}
         self.yenile()
 
     def yenile(self) -> None:
-        for w in self.liste.winfo_children():
-            w.destroy()
+        liste_temizle(self.liste, self._yukleme)
 
         arama = self.arama.get().strip().casefold()
         secili_durum = self.opt_durum.get()
@@ -132,8 +133,12 @@ class GorevlerEkrani(ctk.CTkFrame):
             return
 
         if gorunum == "Kart":
-            for k in filtrelenen:
-                GorevKarti(self.liste, self.pencere, k).pack(fill="x", pady=4, padx=2)
+            kartlari_yerlestir(
+                self.liste,
+                filtrelenen,
+                lambda k: GorevKarti(self.liste, self.pencere, k),
+                self._yukleme,
+            )
         else:
             self._tablo_ciz(filtrelenen)
 

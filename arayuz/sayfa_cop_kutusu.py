@@ -5,7 +5,7 @@ import customtkinter as ctk
 
 import db
 from arayuz.tema import TEMA_RENKLERI, font
-from arayuz.widgetlar import NotKarti, onay_iste
+from arayuz.widgetlar import NotKarti, kartlari_yerlestir, liste_temizle, onay_iste
 
 
 class CopKutusuEkrani(ctk.CTkFrame):
@@ -52,6 +52,8 @@ class CopKutusuEkrani(ctk.CTkFrame):
         self.liste = ctk.CTkScrollableFrame(self, fg_color="transparent", label_text="")
         self.liste.pack(fill="both", expand=True, padx=14, pady=(0, 10))
 
+        # Kartlarin gruplar halinde cizilmesi icin nesil takibi.
+        self._yukleme: dict = {}
         self.yenile()
 
     def _cop_bosalt(self) -> None:
@@ -65,8 +67,7 @@ class CopKutusuEkrani(ctk.CTkFrame):
             self.yenile()
 
     def yenile(self) -> None:
-        for w in self.liste.winfo_children():
-            w.destroy()
+        liste_temizle(self.liste, self._yukleme)
 
         cop = db.cop_kutusu()
         self.sayac.configure(text=f"{len(cop)} Silinmiş Kayıt")
@@ -80,7 +81,9 @@ class CopKutusuEkrani(ctk.CTkFrame):
             ).pack(pady=40)
             return
 
-        for k in cop:
-            NotKarti(self.liste, self.pencere, k, mod="cop").pack(
-                fill="x", pady=4, padx=2
-            )
+        kartlari_yerlestir(
+            self.liste,
+            cop,
+            lambda k: NotKarti(self.liste, self.pencere, k, mod="cop"),
+            self._yukleme,
+        )

@@ -9,7 +9,7 @@ import db
 import notifier
 import reminder
 from arayuz.tema import TEMA_RENKLERI, font
-from arayuz.widgetlar import rozet
+from arayuz.widgetlar import AcilirButon, kartlari_yerlestir, liste_temizle, rozet
 
 
 class BildirimlerEkrani(ctk.CTkFrame):
@@ -76,11 +76,12 @@ class BildirimlerEkrani(ctk.CTkFrame):
         self.liste = ctk.CTkScrollableFrame(self, fg_color="transparent", label_text="")
         self.liste.pack(fill="both", expand=True, padx=14, pady=(0, 10))
 
+        # Satirlarin gruplar halinde cizilmesi icin nesil takibi.
+        self._yukleme: dict = {}
         self.yenile()
 
     def yenile(self) -> None:
-        for w in self.liste.winfo_children():
-            w.destroy()
+        liste_temizle(self.liste, self._yukleme)
 
         arama = self.arama.get().strip().casefold()
         secili_tur = self.opt_tur.get()
@@ -126,10 +127,17 @@ class BildirimlerEkrani(ctk.CTkFrame):
             ).pack(pady=40)
             return
 
-        for g, not_kaydi, tur_metin in filtrelenen:
-            self._satir_ciz(g, not_kaydi, tur_metin)
+        kartlari_yerlestir(
+            self.liste,
+            filtrelenen,
+            lambda kayit: self._satir_ciz(*kayit),
+            self._yukleme,
+            fill="x",
+            pady=3,
+            padx=2,
+        )
 
-    def _satir_ciz(self, g: dict, not_kaydi: dict | None, tur_metin: str) -> None:
+    def _satir_ciz(self, g: dict, not_kaydi: dict | None, tur_metin: str) -> ctk.CTkFrame:
         kart = ctk.CTkFrame(
             self.liste,
             fg_color=TEMA_RENKLERI["bg_kart"],
@@ -137,7 +145,6 @@ class BildirimlerEkrani(ctk.CTkFrame):
             border_width=1,
             border_color=TEMA_RENKLERI["kenarlik"],
         )
-        kart.pack(fill="x", pady=3, padx=2)
         kart.grid_columnconfigure(1, weight=1)
 
         islem = (g.get("islem") or "").lower()
@@ -207,15 +214,19 @@ class BildirimlerEkrani(ctk.CTkFrame):
                     command=lambda: self.uygulama.yapildi_isaretle(nid),
                 ).pack(side="left", padx=2)
 
-                ctk.CTkOptionMenu(
+                AcilirButon(
                     kutu,
-                    values=["15 dakika", "1 saat", "1 gün"],
+                    secenekler=["15 dakika", "1 saat", "1 gün"],
+                    komut=lambda s: self.uygulama.ertele_uyari(
+                        nid, reminder.ERTELEME_SECENEKLERI.get(s, 15)
+                    ),
+                    metin="⏰ Ertele",
                     width=90,
                     height=26,
                     font=font(11),
                     fg_color=TEMA_RENKLERI["btn_notr"],
                     text_color=TEMA_RENKLERI["btn_notr_metin"],
-                    command=lambda s: self.uygulama.ertele_uyari(
-                        nid, reminder.ERTELEME_SECENEKLERI.get(s, 15)
-                    ),
+                    hover_color=TEMA_RENKLERI["btn_notr_hover"],
                 ).pack(side="left", padx=2)
+
+        return kart

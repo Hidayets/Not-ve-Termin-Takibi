@@ -9,7 +9,7 @@ import db
 import reminder
 import rapor
 from arayuz.tema import EVRAK_DURUMLARI, TEMA_RENKLERI, font
-from arayuz.widgetlar import TerminKarti
+from arayuz.widgetlar import TerminKarti, kartlari_yerlestir, liste_temizle
 
 
 class TerminlerEkrani(ctk.CTkFrame):
@@ -88,6 +88,8 @@ class TerminlerEkrani(ctk.CTkFrame):
         self.liste = ctk.CTkScrollableFrame(self, fg_color="transparent", label_text="")
         self.liste.pack(fill="both", expand=True, padx=14, pady=(0, 10))
 
+        # Kartlarin gruplar halinde cizilmesi icin nesil takibi.
+        self._yukleme: dict = {}
         self.yenile()
 
     def _filtre_temizle(self) -> None:
@@ -96,8 +98,7 @@ class TerminlerEkrani(ctk.CTkFrame):
         self.yenile()
 
     def yenile(self) -> None:
-        for w in self.liste.winfo_children():
-            w.destroy()
+        liste_temizle(self.liste, self._yukleme)
 
         arama = self.arama.get().strip().casefold()
         secili_durum = self.opt_durum.get()
@@ -151,5 +152,9 @@ class TerminlerEkrani(ctk.CTkFrame):
             ).pack(pady=40)
             return
 
-        for k in filtrelenen:
-            TerminKarti(self.liste, self.pencere, k).pack(fill="x", pady=4, padx=2)
+        kartlari_yerlestir(
+            self.liste,
+            filtrelenen,
+            lambda k: TerminKarti(self.liste, self.pencere, k),
+            self._yukleme,
+        )

@@ -55,6 +55,11 @@ class AnaPencere(ctk.CTk):
     def __init__(self, uygulama):
         super().__init__()
         self.uygulama = uygulama
+        # Tema degisiminde CustomTkinter, baslik cubugu rengini guncellemek icin
+        # pencereyi gizleyip yeniden gosterir; bu da tum ekranin kaybolup geri
+        # gelmesine (titremeye) yol acar. Baslik cubugu rengini biz dogrudan
+        # DwmSetWindowAttribute ile uyguladigimiz icin bu davranis kapatilir.
+        self._deactivate_windows_window_header_manipulation = True
         self.title("Notlarım & Termin Takibi")
         self.geometry("1200x780")
         self.minsize(1040, 680)
@@ -70,6 +75,8 @@ class AnaPencere(ctk.CTk):
         # Veri degistiginde yeniden cizilmesi gereken sayfalar. Gecis hizini
         # korumak icin sayfa yalnizca ilk gosterimde ve kirliyse yenilenir.
         self._kirli: set[str] = set()
+        # Yan menu ozet rozetleri yalnizca veri degistiginde yeniden hesaplanir.
+        self._ozet_kirli = True
 
         # Ana Izgara: Sol Yan Menu (240px) + Sag Ana Bolge
         self.grid_columnconfigure(0, weight=0, minsize=240)
@@ -87,6 +94,23 @@ class AnaPencere(ctk.CTk):
         self.bolum_goster("panel")
         self.ozet_sayaclari_guncelle()
         self._kisayollari_bagla()
+        # Pencere olustuktan sonra baslik cubugu rengini (koyu/acik) uygula.
+        self.after(80, self.baslik_cubugu_rengini_ayarla)
+
+    def baslik_cubugu_rengini_ayarla(self) -> None:
+        """Baslik cubugu rengini pencereyi gizlemeden (titremesiz) uygular."""
+        try:
+            koyu = ctk.get_appearance_mode() == "Dark"
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+            deger = ctypes.c_int(1 if koyu else 0)
+            # DWMWA_USE_IMMERSIVE_DARK_MODE: 20 (yeni) / 19 (eski Windows surumleri)
+            for nitelik in (20, 19):
+                if ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                    hwnd, nitelik, ctypes.byref(deger), ctypes.sizeof(deger)
+                ) == 0:
+                    break
+        except Exception:
+            pass
 
     def _kisayollari_bagla(self) -> None:
         """Klavye hizlandiricilari: Ctrl+N, F5, Ctrl+P, Ctrl+1..9"""
@@ -110,15 +134,9 @@ class AnaPencere(ctk.CTk):
         """Pencere ve gorev cubugu simgesini uygulama ikonuna ayarlar.
 
         Aksi halde uygulama pythonw/main.py ile acildiginda gorev cubugunda
-        Python simgesi gorunur. Gorev cubugu gruplamasini sabitlemek icin de
-        bir AppUserModelID atanir.
+        Python simgesi gorunur. Gorev cubugu gruplamasi icin gereken
+        AppUserModelID ise pencereler olusmadan once main.py'de ayarlanir.
         """
-        try:
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-                "NotlarimVeTerminTakibi"
-            )
-        except Exception:
-            pass
         try:
             if os.path.exists(db.IKON_YOLU):
                 self.iconbitmap(db.IKON_YOLU)
@@ -300,9 +318,12 @@ class AnaPencere(ctk.CTk):
         # Buton stillerini guncelle (fontlar onbellekten kullanilir)
         for k, btn in self.nav_butonlari.items():
             if k == kod:
+                # Aktif sekme icin dolgun mavi blok yerine sade bir arka plan ve
+                # vurgu renkli metin kullanilir; boylece sekme yazisi "secili
+                # metin" gibi gorunmez.
                 btn.configure(
-                    fg_color=TEMA_RENKLERI["vurgu"],
-                    text_color=TEMA_RENKLERI["vurgu_metin"],
+                    fg_color=TEMA_RENKLERI["bg_sidebar_aktif"],
+                    text_color=TEMA_RENKLERI["vurgu"],
                     font=self._nav_font_aktif,
                 )
             else:
@@ -345,7 +366,10 @@ class AnaPencere(ctk.CTk):
             self._kirli.discard(kod)
             hedef = self.sayfalar[kod]
             self.after_idle(lambda s=hedef, k=kod: self._sayfayi_yenile(s, k))
-        self.after_idle(self.ozet_sayaclari_guncelle)
+        # Rozetler yalnizca veri degistiginde yeniden hesaplanir; boylece sekme
+        # gecisleri veritabani okumasi nedeniyle yavaslamaz.
+        if self._ozet_kirli:
+            self.after_idle(self.ozet_sayaclari_guncelle)
 
     def _sayfayi_yenile(self, sayfa, kod: str) -> None:
         """Erteleme sirasinda bolum degistiyse yenilemeyi iptal eder."""
@@ -391,6 +415,7 @@ class AnaPencere(ctk.CTk):
         self.lbl_ozet_bugun.configure(text=f"📌 Bugün: {bugun_sayisi} iş")
         self.lbl_ozet_geciken.configure(text=f"⚠️ {geciken_sayisi} geciken")
         self.lbl_ozet_termin.configure(text=f"⏳ {termin_sayisi} termin yaklaşıyor")
+        self._ozet_kirli = False
 
     # ------------------------------------------------------------- Islemler
     def yenile(self) -> None:

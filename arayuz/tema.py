@@ -9,10 +9,20 @@ import customtkinter as ctk
 # ------------------------------------------------------------- Font Ailesi
 FONT_FAMILY = "Segoe UI"
 
+# Ayni (boyut, kalinlik, egim) uclusu icin tek CTkFont nesnesi saklanir.
+# CustomTkinter'da her CTkFont olusturmasi pahali oldugundan, kart/liste
+# cizimleri bu onbellek sayesinde belirgin sekilde hizlanir.
+_FONT_ONBELLEK: dict[tuple[int, str, str], ctk.CTkFont] = {}
+
 
 def font(size: int = 12, weight: str = "normal", slant: str = "roman") -> ctk.CTkFont:
-    """Segoe UI tabanli standart font uretici."""
-    return ctk.CTkFont(family=FONT_FAMILY, size=size, weight=weight, slant=slant)
+    """Segoe UI tabanli standart font uretici (onbellekli)."""
+    anahtar = (size, weight, slant)
+    mevcut = _FONT_ONBELLEK.get(anahtar)
+    if mevcut is None:
+        mevcut = ctk.CTkFont(family=FONT_FAMILY, size=size, weight=weight, slant=slant)
+        _FONT_ONBELLEK[anahtar] = mevcut
+    return mevcut
 
 
 # ------------------------------------------------------------- Renk Paleti
