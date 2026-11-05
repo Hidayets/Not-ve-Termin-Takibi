@@ -9,7 +9,7 @@ import sqlite3
 import sys
 
 UYGULAMA_ADI = "Notlarım & Termin Takibi"
-SURUM = "1.6"
+SURUM = "1.7"
 # Kullanici verisinin tutuldugu klasor adi (kullanici profilinde).
 VERI_KLASOR_ADI = "NotlarimVeTerminTakibi"
 

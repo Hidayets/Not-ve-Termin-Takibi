@@ -356,7 +356,13 @@ def aktif_uyari(not_kaydi: dict, simdi: datetime.datetime) -> dict | None:
         }
 
     son_islem = _son_islem_zamani(not_kaydi) if tekrarli(not_kaydi) else None
-    olaylar = olay_zamanlari(not_kaydi, simdi - datetime.timedelta(days=PENCERE_GUN), simdi)
+    # Hatirlatma, olaydan once tetiklenir. Bu yuzden olay bugunden sonraysa bile
+    # uyarisinin vakti gelmis olabilir; pencereyi erteleme suresi kadar ileri
+    # tasimazsak "1 gun once" gibi hatirlatmalar hic gosterilmez.
+    ileri = datetime.timedelta(minutes=int(not_kaydi.get("hatirlatma_once_dk") or 0))
+    olaylar = olay_zamanlari(
+        not_kaydi, simdi - datetime.timedelta(days=PENCERE_GUN), simdi + ileri
+    )
     for olay in reversed(olaylar):
         if son_islem is not None and olay <= son_islem:
             break
