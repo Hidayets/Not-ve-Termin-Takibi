@@ -14,6 +14,7 @@ import notifier
 import reminder
 import sistem
 import yedek
+from arayuz.aylik_sablonlar import AylikSablonKarti
 from arayuz.tema import TEMA_RENKLERI, font
 from arayuz.widgetlar import onay_iste
 
@@ -41,6 +42,7 @@ class AyarlarEkrani(ctk.CTkFrame):
         self._kart_gorunum()
         self._kart_bildirim()
         self._kart_varsayilanlar()
+        self._kart_sablonlar()
         self._kart_windows()
         self._kart_guncelleme()
         self._kart_yedekleme()
@@ -244,6 +246,11 @@ class AyarlarEkrani(ctk.CTkFrame):
             "Kaç gün kala riskli olarak gösterilsin.",
         )
         esik.set(str(db.ayar_sayi("termin_esik_gun", 3)))
+
+    # ------------------------------------------------------------- Sablonlar
+    def _kart_sablonlar(self) -> None:
+        ic = self._kart("Aylık Görev Şablonları", "🔁")
+        AylikSablonKarti(ic, self.pencere).pack(fill="x")
 
     # ------------------------------------------------------------- Windows
     def _kart_windows(self) -> None:

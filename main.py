@@ -312,13 +312,19 @@ def main() -> None:
     bekleyen = guncelleme.bekleyen_guncelleme()
     # Ayni anda yalnizca bir ornek calisabilir.
     if not sistem.kilit_al():
-        # Baska bir ornek (or. tepsidе) calisiyor. Guncelleme bekliyorsa ondan
-        # guncellemeyi kurup yeniden baslatmasini iste; yoksa pencereyi one getir.
+        # Baska bir ornek (or. tepsidе) calisiyor. Pencereyi one getirmek icin
+        # once odak hakkini calisan ornege devret; Windows'un on plan kilidi
+        # (foreground lock) aksi halde pencereyi arkada birakir ve uygulama
+        # "acilmadi" gibi gorunur.
+        sistem.one_getirme_izni_ver()
         if bekleyen is not None:
             sistem.guncelleme_sinyali_gonder()
         else:
             sistem.goster_sinyali_gonder()
         return
+    # Tek ornek kilidi bu surece gecti: PID'yi kaydet ki sonraki ornekler
+    # (or. gorev cubuguna sabitlenmis kisayol) bize odak izni devredebilsin.
+    sistem.pid_kaydet()
     # Uygulama yeniden acildi ve guncelleme hazir: kur ve yeni surumle basla.
     if bekleyen is not None and guncelleme.guncellemeyi_uygula():
         return

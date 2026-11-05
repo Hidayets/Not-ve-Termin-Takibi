@@ -10,6 +10,7 @@ import customtkinter as ctk
 import db
 import notifier
 import reminder
+import sistem
 from arayuz.aylik_ozet import AylikGorevlerEkrani
 from arayuz.sayfa_ayarlar import AyarlarEkrani
 from arayuz.sayfa_bildirimler import BildirimlerEkrani
@@ -460,14 +461,44 @@ class AnaPencere(ctk.CTk):
         YeniEkleDialog(self, self, varsayilan_tur=varsayilan_tur)
 
     def pencereyi_goster(self, ad: str | None = None) -> None:
+        """Pencereyi on plana getirir (tepsi ve sabitlenmis kisayol istekleri).
+
+        Yalnizca deiconify/lift yetmez: Windows arka plandaki bir surecin
+        penceresini dogrudan one getirmesini engeller. Bu yuzden pencere
+        Win32 tarafinda (giris kuyruguna gecici olarak baglanarak) one alinir;
+        ardindan kisa sureli 'en ustte' davranisiyla odagin gercekten
+        uygulamaya gecmesi garanti edilir.
+        """
         try:
             self.deiconify()
+        except Exception:
+            pass
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id()) or self.winfo_id()
+            self.update_idletasks()
+            sistem.pencereyi_one_getir(hwnd)
+        except Exception:
+            pass
+        try:
             self.lift()
             self.focus_force()
+            # Kalici bir "her zaman ustte" davranisi istemiyoruz; yalnizca
+            # odagi garantilemek icin kisa bir sure en ustte tutulur.
+            if not getattr(self, "_ustte_gecici", False):
+                self._ustte_gecici = True
+                self.attributes("-topmost", True)
+                self.after(300, self._gecici_ustte_birak)
         except Exception:
             pass
         if ad:
             self.sekme_goster(ad)
+
+    def _gecici_ustte_birak(self) -> None:
+        self._ustte_gecici = False
+        try:
+            self.attributes("-topmost", False)
+        except Exception:
+            pass
 
     def kapat_talebi(self) -> None:
         if db.ayar_acik("tepsiye_kucult"):
