@@ -160,7 +160,10 @@ class NotHatirlatici:
             uyari = reminder.aktif_uyari(kayit, simdi)
             if uyari is None:
                 continue
-            self.uyari_gonder(kayit, uyari)
+            try:
+                self.uyari_gonder(kayit, uyari)
+            except Exception as hata:  # tek kayitlik hata tum taramayi durdurmasin
+                print("[uyari gonder hatasi]", hata)
 
     def uyari_gonder(self, kayit: dict, uyari: dict) -> None:
         olay = uyari["olay"]
@@ -173,7 +176,7 @@ class NotHatirlatici:
         )
         db.uyari_isaretle(kayit["id"], uyari["ocak"])
         if uyari["kaynak"] == "erteleme":
-            db.erteleme_temizle(kayit["id"])
+            db.ertelenen_temizle(kayit["id"])
         db.uyari_kaydet(
             kayit["id"],
             kayit.get("baslik") or "",
